@@ -7,44 +7,61 @@
 #define BOARD_WIDTH (SCREEN_WIDTH / BLOCK_SIZE)
 #define BOARD_HEIGHT (SCREEN_HEIGHT / BLOCK_SIZE)
 
-int neighborCount(bool board[BOARD_HEIGHT][BOARD_WIDTH], int i, int j) {
+enum State {
+    DRAWING_STATE,
+    RUN_STATE,
+};
+
+enum State gState;
+bool gBoard[BOARD_HEIGHT][BOARD_WIDTH];
+bool gLastBoard[BOARD_HEIGHT][BOARD_WIDTH];
+
+int neighborCount(int i, int j) {
     int nCount = 0;
-    if (i - 1 >= 0 && j - 1 >= 0 && board[i - 1][j - 1] == true) {
+    if (i - 1 >= 0 && j - 1 >= 0 && gBoard[i - 1][j - 1] == true) {
         // up-left
         nCount++;
     } 
-    if (i - 1 >= 0 && board[i - 1][j] == true) {
+    if (i - 1 >= 0 && gBoard[i - 1][j] == true) {
         // up
         nCount++;
     } 
-    if (i - 1 >= 0 && j + 1 < BOARD_WIDTH && board[i - 1][j + 1] == true) {
+    if (i - 1 >= 0 && j + 1 < BOARD_WIDTH && gBoard[i - 1][j + 1] == true) {
         // up-right
         nCount++;
     }
-    if (j + 1 < BOARD_WIDTH && board[i][j + 1]) {
+    if (j + 1 < BOARD_WIDTH && gBoard[i][j + 1]) {
         // right
         nCount++;
     } 
-    if (i + 1 < BOARD_HEIGHT && j + 1 < BOARD_WIDTH && board[i + 1][j + 1] == true) {
+    if (i + 1 < BOARD_HEIGHT && j + 1 < BOARD_WIDTH && gBoard[i + 1][j + 1] == true) {
         // down-right
         nCount++;
     }
-    if (i + 1 < BOARD_HEIGHT && board[i + 1][j] == true) {
+    if (i + 1 < BOARD_HEIGHT && gBoard[i + 1][j] == true) {
         // down
         nCount++;
     } 
-    if (i + 1 < BOARD_HEIGHT && j - 1 >= 0 && board[i + 1][j - 1] == true) {
+    if (i + 1 < BOARD_HEIGHT && j - 1 >= 0 && gBoard[i + 1][j - 1] == true) {
         // down-left
         nCount++;
     }
-    if (j - 1 >= 0 && board[i][j - 1] == true) {
+    if (j - 1 >= 0 && gBoard[i][j - 1] == true) {
         // left
         nCount++;
     }
     return nCount;
 }
 
-void update(bool board[BOARD_HEIGHT][BOARD_WIDTH]) {
+void copyBoard(bool src[BOARD_HEIGHT][BOARD_WIDTH], bool dst[BOARD_HEIGHT][BOARD_WIDTH]) {
+    for (int i = 0; i < BOARD_HEIGHT; i++) {
+        for (int j = 0; j < BOARD_WIDTH; j++) {
+            dst[i][j] = src[i][j];
+        }
+    }
+}
+
+void update() {
     // Any live cell with fewer than two live neighbors dies, as if by underpopulation.
     // Any live cell with two or three live neighbors lives on to the next generation.
     // Any live cell with more than three live neighbors dies, as if by overpopulation.
@@ -52,9 +69,9 @@ void update(bool board[BOARD_HEIGHT][BOARD_WIDTH]) {
     bool updates[BOARD_HEIGHT][BOARD_WIDTH];
     for (int i = 0; i < BOARD_HEIGHT; i++) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
-            updates[i][j] = board[i][j];
-            int nCount = neighborCount(board, i, j);
-            if (board[i][j] == true) {
+            updates[i][j] = gBoard[i][j];
+            int nCount = neighborCount(i, j);
+            if (gBoard[i][j] == true) {
                 // alive
                 if (nCount < 2) {
                     updates[i][j] = false;
@@ -69,20 +86,71 @@ void update(bool board[BOARD_HEIGHT][BOARD_WIDTH]) {
             }
         }
     }
-    // apply update
+    copyBoard(updates, gBoard);
+}
+
+SDL_Point mouseToBoardCoordinates(int x, int y) {
+    SDL_Point p = {x / BLOCK_SIZE, y / BLOCK_SIZE};
+    return p;
+}
+
+void clearBoard() {
     for (int i = 0; i < BOARD_HEIGHT; i++) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
-            board[i][j] = updates[i][j];
+            gBoard[i][j] = false;
         }
     }
 }
 
-void draw(SDL_Renderer* renderer, bool board[BOARD_HEIGHT][BOARD_WIDTH]) {
+void enterRunState() {
+    gState = RUN_STATE;
+    // save last board state
+    copyBoard(gBoard, gLastBoard);
+}
+
+void updateDrawState(SDL_Event e) {
+    if (e.type == SDL_MOUSEBUTTONDOWN) {
+        int mouseX = e.motion.x;
+        int mouseY = e.motion.y;
+        SDL_Point boardCorrdinates = mouseToBoardCoordinates(mouseX, mouseY);
+        int boardX = boardCorrdinates.x;
+        int boardY = boardCorrdinates.y;
+        if (e.button.button == SDL_BUTTON_LEFT) {
+            gBoard[boardY][boardX] = true;
+        } else if (e.button.button == SDL_BUTTON_RIGHT) {
+            gBoard[boardY][boardX] = false;
+        }
+    } 
+    if (e.type == SDL_KEYDOWN) {
+        switch (e.key.keysym.sym) {
+            case SDLK_SPACE: 
+                enterRunState();
+                break;
+            case SDLK_c:
+                clearBoard();
+                break;
+        }
+    }
+}
+
+void enterDrawingState() {
+    gState = DRAWING_STATE;
+    // apply last drawing state board to gBoard
+    copyBoard(gLastBoard, gBoard);
+}
+
+void updateRunState(SDL_Event e) {
+    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE) {
+        enterDrawingState();
+    }
+}
+
+void draw(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xff);
     SDL_RenderClear(renderer);
     for (int i = 0; i < BOARD_HEIGHT; i++) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
-            if (board[i][j] == true) {
+            if (gBoard[i][j] == true) {
                 int x = j * BLOCK_SIZE;
                 int y = i * BLOCK_SIZE;
                 SDL_Rect temp = {x, y, BLOCK_SIZE, BLOCK_SIZE};
@@ -96,6 +164,9 @@ void draw(SDL_Renderer* renderer, bool board[BOARD_HEIGHT][BOARD_WIDTH]) {
 }
 
 int main(int argc, char* args[]) {
+    // printf("board width: %d\n", BOARD_WIDTH);
+    // printf("board height: %d\n", BOARD_HEIGHT);
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_Log("%s\n", SDL_GetError());
         return 1;
@@ -117,31 +188,23 @@ int main(int argc, char* args[]) {
         SDL_Log("%s\n", SDL_GetError());
         return 1;
     }
-    bool board[BOARD_HEIGHT][BOARD_WIDTH] = {0};
-    board[1][2] = true;
-    board[2][3] = true;
-    board[3][1] = true;
-    board[3][2] = true;
-    board[3][3] = true;
 
-
+    gState = DRAWING_STATE;
     SDL_Event e; bool quit = false;
     while (!quit) {
         while (SDL_PollEvent(&e) != 0) {
-            // if (e.type == SDL_QUIT) {
-            //     quit = true;
-            // }
-            switch (e.type) {
-                case SDL_QUIT:
-                    quit = true;
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    printf("here");
-                    break;
+            if (e.type == SDL_QUIT) {
+                quit = true;
+            } else if (gState == DRAWING_STATE) {
+                updateDrawState(e);
+            } else if (gState == RUN_STATE) {
+                updateRunState(e);
             }
         }
-        update(board);
-        draw(renderer, board);
+        if (gState == RUN_STATE) {
+            update(gBoard);
+        }
+        draw(renderer);
         SDL_Delay(60);
     }
 
