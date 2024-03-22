@@ -1,9 +1,11 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <time.h>
 
-#define SCREEN_WIDTH 1000
-#define SCREEN_HEIGHT 640
-#define BLOCK_SIZE (SCREEN_WIDTH / 60)
+#define SCREEN_WIDTH 1500
+#define SCREEN_HEIGHT 1000
+#define BLOCK_SIZE (SCREEN_WIDTH / 300)
 #define BOARD_WIDTH (SCREEN_WIDTH / BLOCK_SIZE)
 #define BOARD_HEIGHT (SCREEN_HEIGHT / BLOCK_SIZE)
 
@@ -163,9 +165,38 @@ void draw(SDL_Renderer* renderer) {
     SDL_RenderPresent(renderer);
 }
 
+void usage() {
+    printf("Usage: --mode [draw | random]\n");
+}
+
+void fillBoardWithRandom() {
+    // rand() % (max_number + 1 - minimum_number) + minimum_number
+    for (int i = 0; i < BOARD_HEIGHT; i++) {
+        for (int j = 0; j < BOARD_WIDTH; j++) {
+            if (rand() % 4 == 0) {
+                gBoard[i][j] = true;
+            }
+        }
+    }
+}
+
 int main(int argc, char* args[]) {
     // printf("board width: %d\n", BOARD_WIDTH);
     // printf("board height: %d\n", BOARD_HEIGHT);
+    if (argc != 3) {
+        usage();
+        return 0;
+    }
+    char* mode = args[2];
+    if (strcmp(mode, "random") == 0) {
+        srand(time(NULL));
+        fillBoardWithRandom();
+        enterRunState();
+    } else if (strcmp(mode, "draw") == 0) {
+        // as is
+        enterDrawingState();
+    }
+
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_Log("%s\n", SDL_GetError());
@@ -189,7 +220,6 @@ int main(int argc, char* args[]) {
         return 1;
     }
 
-    gState = DRAWING_STATE;
     SDL_Event e; bool quit = false;
     while (!quit) {
         while (SDL_PollEvent(&e) != 0) {
