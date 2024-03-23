@@ -165,12 +165,8 @@ void draw(SDL_Renderer* renderer) {
     SDL_RenderPresent(renderer);
 }
 
-void usage() {
-    printf("Usage: --mode [draw | random]\n");
-}
-
 void fillBoardWithRandom() {
-    // rand() % (max_number + 1 - minimum_number) + minimum_number
+    srand(time(NULL));
     for (int i = 0; i < BOARD_HEIGHT; i++) {
         for (int j = 0; j < BOARD_WIDTH; j++) {
             if (rand() % 4 == 0) {
@@ -181,22 +177,12 @@ void fillBoardWithRandom() {
 }
 
 int main(int argc, char* args[]) {
-    // printf("board width: %d\n", BOARD_WIDTH);
-    // printf("board height: %d\n", BOARD_HEIGHT);
-    if (argc != 3) {
-        usage();
-        return 0;
-    }
-    char* mode = args[2];
-    if (strcmp(mode, "random") == 0) {
-        srand(time(NULL));
+    if (argc == 2 && strcmp(args[1], "--random") == 0) {
         fillBoardWithRandom();
         enterRunState();
-    } else if (strcmp(mode, "draw") == 0) {
-        // as is
+    } else {
         enterDrawingState();
     }
-
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         SDL_Log("%s\n", SDL_GetError());
